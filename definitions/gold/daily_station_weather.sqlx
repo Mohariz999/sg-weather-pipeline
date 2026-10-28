@@ -11,7 +11,8 @@ config {
     max_temp_c: "Highest hourly-average temperature of the day",
     total_rain_mm: "Sum of hourly rainfall",
     rainy_hours: "Hours with more than 0 mm of rain",
-    hours_reported: "Hours with a temperature reading; under 24 means gaps"
+    hours_reported: "Hours with a temperature reading; under 24 means gaps",
+    station_location: "Latitude,longitude for map visualisations"
   },
   assertions: {
     uniqueKey: ["obs_date", "station_id"],
@@ -24,6 +25,10 @@ SELECT
   DATE(h.observed_hour, 'Asia/Singapore') AS obs_date,
   h.station_id,
   s.station_name,
+  s.latitude,
+  s.longitude,
+  -- "lat,long" text, which Looker Studio can use directly as a geo field for maps.
+  CONCAT(CAST(s.latitude AS STRING), ',', CAST(s.longitude AS STRING)) AS station_location,
   MIN(IF(h.metric = 'air_temperature', h.value, NULL)) AS min_temp_c,
   MAX(IF(h.metric = 'air_temperature', h.value, NULL)) AS max_temp_c,
   ROUND(AVG(IF(h.metric = 'air_temperature', h.value, NULL)), 2) AS avg_temp_c,
@@ -35,4 +40,4 @@ SELECT
   STRING_AGG(DISTINCT h.source ORDER BY h.source) AS sources
 FROM ${ref("observations_hourly")} AS h
 LEFT JOIN ${ref("stations")} AS s USING (station_id)
-GROUP BY obs_date, station_id, station_name
+GROUP BY obs_date, station_id, station_name, latitude, longitude, station_location

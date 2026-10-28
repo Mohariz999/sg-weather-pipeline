@@ -58,5 +58,6 @@ Range rules, enforced as Dataform assertions on silver: temperature 15–45, hum
 | `max_wind_kmh` | highest hourly-average wind speed |
 | `hours_reported` | distinct hours with a temperature value (completeness) |
 | `sources` | `legacy_archive`, `realtime_stream`, or both on cutover day |
+| `latitude`, `longitude`, `station_location` | from `silver.stations`; `station_location` is `"lat,long"` text for maps |
 
 `gold.island_daily_summary` (grain: `obs_date`) aggregates the table above across stations. `heavy_rain_stations` counts stations with ≥ 30 mm in the day.
