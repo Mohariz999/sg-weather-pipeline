@@ -21,9 +21,9 @@ variable "budget_amount" {
 }
 
 variable "budget_currency" {
-  description = "Must match the billing account's currency (USD or SGD, for example)."
+  description = "Leave null to use the billing account's own currency; if set, it must match it."
   type        = string
-  default     = "USD"
+  default     = null
 }
 
 variable "alert_email" {

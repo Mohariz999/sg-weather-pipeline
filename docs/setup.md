@@ -1,6 +1,6 @@
 # Setup
 
-Every command runs in **Cloud Shell**, which already has `gcloud`, `bq`, `terraform`, `python3` and `git` installed. Replace `<project-id>` and `<github-user>` with your own values.
+Every command runs in **Cloud Shell**, which already has `gcloud`, `bq`, `python3` and `git` installed (Terraform is installed in step 3). Replace `<project-id>` and `<github-user>` with your own values.
 
 ## 1. Project and billing
 
@@ -29,6 +29,12 @@ cp terraform/terraform.tfvars.example terraform/terraform.tfvars
 ```
 
 ## 3. First Terraform apply
+
+```bash
+# Terraform is not pre-installed in Cloud Shell. Installing into ~/bin keeps it across sessions.
+mkdir -p ~/bin && curl -sSLo /tmp/tf.zip https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip \
+  && unzip -o -q /tmp/tf.zip -d ~/bin && export PATH="$HOME/bin:$PATH" && terraform version
+```
 
 ```bash
 cd terraform
