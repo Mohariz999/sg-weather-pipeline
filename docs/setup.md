@@ -1,10 +1,10 @@
 # Setup
 
-Every command runs in **Cloud Shell**, which already has `gcloud`, `bq`, `terraform`, `python3` and `git` installed. Replace `sg-weather-pipeline` with your project ID wherever it appears.
+Every command runs in **Cloud Shell**, which already has `gcloud`, `bq`, `terraform`, `python3` and `git` installed. Replace `<project-id>` and `<github-user>` with your own values.
 
 ## 1. Project and billing
 
-1. In the Cloud Console, create a project (for example `sg-weather-pipeline`).
+1. In the Cloud Console, create a project and note its project ID.
 2. Link it to the billing account that holds your credits: **Billing → Link a billing account**.
 3. Note the billing account ID (`XXXXXX-XXXXXX-XXXXXX`) under **Billing → Account management**.
 
@@ -13,10 +13,10 @@ Every command runs in **Cloud Shell**, which already has `gcloud`, `bq`, `terraf
 Create a GitHub fine-grained personal access token first: **Settings → Developer settings → Fine-grained tokens**, limited to this repository, with **Contents: read and write**. For a private repository, `git clone` asks for it (paste it as the password). Dataform needs the same token in step 5.
 
 ```bash
-git clone https://github.com/<you>/sg-weather-pipeline.git
+git clone https://github.com/<github-user>/sg-weather-pipeline.git
 cd sg-weather-pipeline
 
-export PROJECT_ID=sg-weather-pipeline
+export PROJECT_ID=<project-id>
 export REGION=asia-southeast1
 gcloud config set project "$PROJECT_ID"
 
@@ -61,7 +61,7 @@ The scheduler now runs the poller every 5 minutes, and the BigQuery subscription
    ```bash
    printf '%s' 'github_pat_...' | gcloud secrets versions add dataform-github-token --data-file=-
    ```
-3. In `terraform/terraform.tfvars`, set `github_repo_url = "https://github.com/<you>/sg-weather-pipeline.git"` and apply again:
+3. In `terraform/terraform.tfvars`, set `github_repo_url = "https://github.com/<github-user>/sg-weather-pipeline.git"` and apply again:
    ```bash
    cd terraform && terraform apply && cd ..
    ```
@@ -81,7 +81,7 @@ Once reconciliation shows every file `MATCHED`, set `enable_daily_transform = tr
 In **Cloud Build → Triggers**, connect the GitHub repository (2nd gen) and create a trigger:
 - Event: push to `main`
 - Configuration: `cloudbuild.yaml`
-- Service account: `sa-deployer@<project>.iam.gserviceaccount.com`
+- Service account: `sa-deployer@<project-id>.iam.gserviceaccount.com`
 
 GitHub Actions (`.github/workflows/ci.yml`) runs lint, tests, `dataform compile` and `terraform validate` on every pull request.
 

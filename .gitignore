@@ -20,3 +20,6 @@ legacy_out/
 
 # Local assistant notes
 CLAUDE.md
+
+# Personal setup values (project ID, billing account)
+local/

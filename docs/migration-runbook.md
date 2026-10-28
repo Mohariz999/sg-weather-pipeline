@@ -21,7 +21,7 @@ Moves the legacy hourly archive (one CSV per station per year) into BigQuery and
 ## 1. Extract
 
 ```bash
-export PROJECT_ID=sg-weather-pipeline REGION=asia-southeast1
+export PROJECT_ID=<project-id> REGION=asia-southeast1
 pip install -r ingest/legacy_extract/requirements.txt
 python3 ingest/legacy_extract/legacy_extract.py --bucket "${PROJECT_ID}-landing"
 ```
