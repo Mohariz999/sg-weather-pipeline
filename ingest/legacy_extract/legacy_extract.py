@@ -66,14 +66,23 @@ def fetch_history(session, latitude, longitude, start, end):
         "timezone": "Asia/Singapore",
         "wind_speed_unit": "kmh",
     }
+    last_error = None
     for attempt in range(5):
-        resp = session.get(ARCHIVE_API, params=params, timeout=120)
-        if resp.status_code == 429:
-            time.sleep(60 * (attempt + 1))
-            continue
-        resp.raise_for_status()
-        return resp.json()["hourly"]
-    raise RuntimeError(f"rate limited fetching {latitude},{longitude}")
+        try:
+            resp = session.get(ARCHIVE_API, params=params, timeout=120)
+            if resp.status_code == 429 or resp.status_code >= 500:
+                raise requests.HTTPError(f"HTTP {resp.status_code}")
+            resp.raise_for_status()
+            return resp.json()["hourly"]
+        except (requests.HTTPError, requests.ConnectionError, requests.Timeout, ValueError) as e:
+            # Rate limits, server errors and the occasional truncated or empty body are
+            # all transient; anything else (e.g. a 400 for bad parameters) is raised above.
+            if isinstance(e, requests.HTTPError) and e.response is not None and e.response.status_code < 500:
+                raise
+            last_error = e
+            log.warning("retrying %s,%s after: %s", latitude, longitude, e)
+            time.sleep(30 * (attempt + 1))
+    raise RuntimeError(f"giving up on {latitude},{longitude}: {last_error}")
 
 
 def to_legacy_rows(station_id, hourly, rng, sentinel_rate):

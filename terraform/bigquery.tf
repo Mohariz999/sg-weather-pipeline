@@ -56,6 +56,12 @@ resource "google_bigquery_table" "legacy_observations" {
     field = "observed_at_utc"
   }
 
+  # The Dataproc migration job overwrites this table, and BigQuery then reports the schema
+  # in its own form (FLOAT vs FLOAT64, REQUIRED lineage columns). Spark owns it from here.
+  lifecycle {
+    ignore_changes = [schema]
+  }
+
   schema = jsonencode([
     { name = "stn_code", type = "STRING", mode = "NULLABLE" },
     { name = "obs_date", type = "DATE", mode = "NULLABLE" },
@@ -75,6 +81,12 @@ resource "google_bigquery_table" "legacy_stations" {
   dataset_id          = google_bigquery_dataset.layers["bronze"].dataset_id
   table_id            = "legacy_stations"
   deletion_protection = false
+
+  # The Dataproc migration job overwrites this table, and BigQuery then reports the schema
+  # in its own form (FLOAT vs FLOAT64, REQUIRED lineage columns). Spark owns it from here.
+  lifecycle {
+    ignore_changes = [schema]
+  }
 
   schema = jsonencode([
     { name = "stn_code", type = "STRING", mode = "NULLABLE" },
