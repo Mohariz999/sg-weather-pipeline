@@ -1,0 +1,13 @@
+config {
+  type: "assertion",
+  description: "Fails if more than 1% of yesterday's real-time messages were quarantined."
+}
+
+WITH yesterday AS (
+  SELECT error
+  FROM ${ref("readings_parsed")}
+  WHERE DATE(publish_time, 'Asia/Singapore') = DATE_SUB(CURRENT_DATE('Asia/Singapore'), INTERVAL 1 DAY)
+)
+SELECT COUNTIF(error IS NOT NULL) AS quarantined, COUNT(*) AS total, SAFE_DIVIDE(COUNTIF(error IS NOT NULL), COUNT(*)) AS rate
+FROM yesterday
+HAVING SAFE_DIVIDE(COUNTIF(error IS NOT NULL), COUNT(*)) > 0.01

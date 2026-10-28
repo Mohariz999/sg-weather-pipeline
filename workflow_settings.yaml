@@ -1,0 +1,14 @@
+# Dataform project settings. Dataform compiles from the repo root, which is why this file
+# lives here. defaultProject is overridden at compile time by orchestration/daily_transform.yaml,
+# so the repo is not tied to one GCP project.
+defaultProject: your-project-id
+defaultLocation: asia-southeast1
+defaultDataset: silver
+defaultAssertionDataset: ops
+dataformCoreVersion: 3.0.0
+vars:
+  # Hours before this date (Singapore time) come from the legacy archive; from this
+  # date on, from the real-time stream. Set it to the day the poller went live.
+  cutover_date: "2026-10-28"
+  # Fail the run if the stream has gone quiet. Workflows sets this per run.
+  check_freshness: "false"

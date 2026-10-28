@@ -1,0 +1,62 @@
+config {
+  type: "view",
+  schema: "silver",
+  description: "Raw Pub/Sub messages parsed into typed columns, with a validation error for any message that can't be used. Feeds readings_clean and readings_quarantine.",
+  columns: {
+    error: "NULL for a valid message; otherwise why it was rejected"
+  }
+}
+
+WITH parsed AS (
+  SELECT
+    message_id,
+    publish_time,
+    data AS payload,
+    SAFE.PARSE_JSON(data) AS j
+  FROM ${ref("weather_readings_raw")}
+),
+
+fields AS (
+  SELECT
+    message_id,
+    publish_time,
+    payload,
+    j,
+    JSON_VALUE(j, '$.metric') AS metric,
+    NULLIF(JSON_VALUE(j, '$.station_id'), '') AS station_id,
+    JSON_VALUE(j, '$.station_name') AS station_name,
+    SAFE_CAST(JSON_VALUE(j, '$.latitude') AS FLOAT64) AS latitude,
+    SAFE_CAST(JSON_VALUE(j, '$.longitude') AS FLOAT64) AS longitude,
+    JSON_VALUE(j, '$.reading_ts') AS reading_ts_text,
+    JSON_VALUE(j, '$.value') AS value_text,
+    JSON_VALUE(j, '$.unit') AS unit,
+    SAFE_CAST(JSON_VALUE(j, '$.ingested_at') AS TIMESTAMP) AS ingested_at
+  FROM parsed
+)
+
+SELECT
+  message_id,
+  publish_time,
+  payload,
+  metric,
+  station_id,
+  station_name,
+  latitude,
+  longitude,
+  SAFE_CAST(reading_ts_text AS TIMESTAMP) AS reading_ts,
+  SAFE_CAST(value_text AS FLOAT64) AS value,
+  unit,
+  ingested_at,
+  CASE
+    WHEN j IS NULL THEN 'invalid JSON'
+    WHEN metric IS NULL OR station_id IS NULL OR reading_ts_text IS NULL OR value_text IS NULL
+      THEN 'missing required field'
+    WHEN metric NOT IN ('air_temperature', 'rainfall', 'relative_humidity', 'wind_speed', 'wind_direction')
+      THEN 'unknown metric'
+    WHEN SAFE_CAST(value_text AS FLOAT64) IS NULL THEN 'non-numeric value'
+    -- Without an explicit offset BigQuery would assume UTC, silently shifting SGT readings by 8 hours.
+    WHEN SAFE_CAST(reading_ts_text AS TIMESTAMP) IS NULL
+      OR NOT REGEXP_CONTAINS(reading_ts_text, r'(Z|[+-]\d{2}:\d{2})$')
+      THEN 'invalid reading_ts'
+  END AS error
+FROM fields

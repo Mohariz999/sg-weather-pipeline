@@ -1,0 +1,38 @@
+config {
+  type: "table",
+  schema: "gold",
+  description: "Daily weather per station (Singapore calendar day). Grain: obs_date x station_id.",
+  bigquery: {
+    partitionBy: "obs_date",
+    clusterBy: ["station_id"]
+  },
+  columns: {
+    min_temp_c: "Lowest hourly-average temperature of the day",
+    max_temp_c: "Highest hourly-average temperature of the day",
+    total_rain_mm: "Sum of hourly rainfall",
+    rainy_hours: "Hours with more than 0 mm of rain",
+    hours_reported: "Hours with a temperature reading; under 24 means gaps"
+  },
+  assertions: {
+    uniqueKey: ["obs_date", "station_id"],
+    nonNull: ["obs_date", "station_id"],
+    rowConditions: ["min_temp_c <= max_temp_c", "total_rain_mm >= 0"]
+  }
+}
+
+SELECT
+  DATE(h.observed_hour, 'Asia/Singapore') AS obs_date,
+  h.station_id,
+  s.station_name,
+  MIN(IF(h.metric = 'air_temperature', h.value, NULL)) AS min_temp_c,
+  MAX(IF(h.metric = 'air_temperature', h.value, NULL)) AS max_temp_c,
+  ROUND(AVG(IF(h.metric = 'air_temperature', h.value, NULL)), 2) AS avg_temp_c,
+  ROUND(SUM(IF(h.metric = 'rainfall', h.value, NULL)), 2) AS total_rain_mm,
+  COUNTIF(h.metric = 'rainfall' AND h.value > 0) AS rainy_hours,
+  ROUND(AVG(IF(h.metric = 'relative_humidity', h.value, NULL)), 1) AS avg_humidity_pct,
+  ROUND(MAX(IF(h.metric = 'wind_speed', h.value, NULL)), 1) AS max_wind_kmh,
+  COUNT(DISTINCT IF(h.metric = 'air_temperature', h.observed_hour, NULL)) AS hours_reported,
+  STRING_AGG(DISTINCT h.source ORDER BY h.source) AS sources
+FROM ${ref("observations_hourly")} AS h
+LEFT JOIN ${ref("stations")} AS s USING (station_id)
+GROUP BY obs_date, station_id, station_name

@@ -1,0 +1,32 @@
+config {
+  type: "table",
+  schema: "silver",
+  description: "Station master data: latest real-time metadata, falling back to the legacy station list.",
+  assertions: {
+    uniqueKey: ["station_id"],
+    nonNull: ["station_id"]
+  }
+}
+
+WITH stream AS (
+  SELECT
+    station_id,
+    ARRAY_AGG(STRUCT(station_name, latitude, longitude) ORDER BY ingested_at DESC LIMIT 1)[OFFSET(0)] AS latest
+  FROM ${ref("readings_clean")}
+  GROUP BY station_id
+),
+
+legacy AS (
+  SELECT stn_code AS station_id, stn_name, latitude, longitude
+  FROM ${ref("legacy_stations")}
+)
+
+SELECT
+  COALESCE(s.station_id, l.station_id) AS station_id,
+  COALESCE(s.latest.station_name, l.stn_name) AS station_name,
+  COALESCE(s.latest.latitude, l.latitude) AS latitude,
+  COALESCE(s.latest.longitude, l.longitude) AS longitude,
+  s.station_id IS NOT NULL AS in_realtime_feed,
+  l.station_id IS NOT NULL AS in_legacy_archive
+FROM stream AS s
+FULL OUTER JOIN legacy AS l USING (station_id)

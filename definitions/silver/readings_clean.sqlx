@@ -1,0 +1,50 @@
+config {
+  type: "incremental",
+  schema: "silver",
+  description: "Valid real-time readings, deduplicated, with units standardised (wind speed knots -> km/h).",
+  uniqueKey: ["metric", "station_id", "reading_ts"],
+  bigquery: {
+    partitionBy: "DATE(reading_ts)",
+    clusterBy: ["metric", "station_id"],
+    updatePartitionFilter: "reading_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)"
+  },
+  columns: {
+    value: "Reading in the standard unit for its metric (see unit).",
+    _published_at: "Pub/Sub publish time; the incremental high-water mark."
+  },
+  assertions: {
+    nonNull: ["metric", "station_id", "reading_ts", "value"],
+    uniqueKey: ["metric", "station_id", "reading_ts"],
+    rowConditions: [
+      "metric != 'air_temperature' OR value BETWEEN 15 AND 45",
+      "metric != 'relative_humidity' OR value BETWEEN 0 AND 100",
+      "metric != 'rainfall' OR value BETWEEN 0 AND 200",
+      "metric != 'wind_speed' OR value BETWEEN 0 AND 200",
+      "metric != 'wind_direction' OR value BETWEEN 0 AND 360"
+    ]
+  }
+}
+
+SELECT
+  metric,
+  station_id,
+  station_name,
+  latitude,
+  longitude,
+  reading_ts,
+  CASE WHEN metric = 'wind_speed' AND LOWER(unit) LIKE 'knot%' THEN value * 1.852 ELSE value END AS value,
+  CASE metric
+    WHEN 'air_temperature' THEN 'degC'
+    WHEN 'relative_humidity' THEN 'pct'
+    WHEN 'rainfall' THEN 'mm'
+    WHEN 'wind_speed' THEN 'km/h'
+    WHEN 'wind_direction' THEN 'deg'
+  END AS unit,
+  ingested_at,
+  publish_time AS _published_at
+FROM ${ref("readings_parsed")}
+WHERE error IS NULL
+${when(incremental(),
+  `AND publish_time > (SELECT IFNULL(MAX(_published_at), TIMESTAMP('1970-01-01')) FROM ${self()})`)}
+-- The poller can publish the same reading twice; keep the latest copy.
+QUALIFY ROW_NUMBER() OVER (PARTITION BY metric, station_id, reading_ts ORDER BY publish_time DESC) = 1

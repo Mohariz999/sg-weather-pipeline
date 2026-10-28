@@ -1,0 +1,75 @@
+config {
+  type: "table",
+  schema: "silver",
+  description: "One row per station, metric and hour, combining the legacy archive (before cutover) and the real-time stream (from cutover).",
+  bigquery: {
+    partitionBy: "DATE(observed_hour)",
+    clusterBy: ["station_id", "metric"]
+  },
+  columns: {
+    value: "Hourly average; rainfall is the hourly total; wind direction is the circular mean.",
+    source: "legacy_archive or realtime_stream"
+  },
+  assertions: {
+    uniqueKey: ["station_id", "metric", "observed_hour"],
+    nonNull: ["station_id", "metric", "observed_hour", "value", "source"]
+  }
+}
+
+js {
+  const cutover = `DATE '${dataform.projectConfig.vars.cutover_date}'`;
+}
+
+WITH legacy AS (
+  SELECT
+    stn_code AS station_id,
+    TIMESTAMP_TRUNC(observed_at_utc, HOUR) AS observed_hour,
+    m.metric,
+    -- -999 is the legacy system's "no reading" marker.
+    NULLIF(m.value, -999) AS value,
+    1 AS reading_count,
+    'legacy_archive' AS source
+  FROM ${ref("legacy_observations")},
+  UNNEST([
+    STRUCT('air_temperature' AS metric, temp_c AS value),
+    STRUCT('relative_humidity', rh_pct),
+    STRUCT('rainfall', rain_mm),
+    STRUCT('wind_speed', wind_kmh),
+    STRUCT('wind_direction', wind_dir_deg)
+  ]) AS m
+  WHERE DATE(observed_at_utc, 'Asia/Singapore') < ${cutover}
+),
+
+stream AS (
+  SELECT
+    station_id,
+    TIMESTAMP_TRUNC(reading_ts, HOUR) AS observed_hour,
+    metric,
+    CASE metric
+      WHEN 'rainfall' THEN SUM(value)
+      -- Averaging angles directly is wrong (350 and 10 average to 180), so take the circular mean.
+      WHEN 'wind_direction' THEN
+        ATAN2(AVG(SIN(value * ACOS(-1) / 180)), AVG(COS(value * ACOS(-1) / 180))) * 180 / ACOS(-1)
+      ELSE AVG(value)
+    END AS value,
+    COUNT(*) AS reading_count,
+    'realtime_stream' AS source
+  FROM ${ref("readings_clean")}
+  WHERE DATE(reading_ts, 'Asia/Singapore') >= ${cutover}
+  GROUP BY station_id, observed_hour, metric
+)
+
+SELECT
+  station_id,
+  observed_hour,
+  metric,
+  -- ATAN2 returns -180..180; shift wind direction back to 0..360.
+  IF(metric = 'wind_direction' AND value < 0, value + 360, value) AS value,
+  reading_count,
+  source
+FROM (
+  SELECT * FROM legacy
+  UNION ALL
+  SELECT * FROM stream
+)
+WHERE value IS NOT NULL

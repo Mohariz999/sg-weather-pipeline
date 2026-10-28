@@ -1,0 +1,29 @@
+config {
+  type: "table",
+  schema: "gold",
+  description: "Island-wide daily summary. Grain: obs_date.",
+  bigquery: {
+    partitionBy: "obs_date"
+  },
+  columns: {
+    heavy_rain_stations: "Stations with at least 30 mm of rain that day"
+  },
+  assertions: {
+    uniqueKey: ["obs_date"],
+    nonNull: ["obs_date", "stations_reporting"]
+  }
+}
+
+SELECT
+  obs_date,
+  COUNT(*) AS stations_reporting,
+  ROUND(AVG(avg_temp_c), 2) AS island_avg_temp_c,
+  MAX(max_temp_c) AS island_max_temp_c,
+  MIN(min_temp_c) AS island_min_temp_c,
+  ROUND(AVG(total_rain_mm), 2) AS avg_station_rain_mm,
+  MAX(total_rain_mm) AS max_station_rain_mm,
+  COUNTIF(total_rain_mm >= 30) AS heavy_rain_stations,
+  ARRAY_AGG(station_name IGNORE NULLS ORDER BY total_rain_mm DESC LIMIT 1)[SAFE_OFFSET(0)] AS wettest_station,
+  ARRAY_AGG(station_name IGNORE NULLS ORDER BY max_temp_c DESC LIMIT 1)[SAFE_OFFSET(0)] AS hottest_station
+FROM ${ref("daily_station_weather")}
+GROUP BY obs_date

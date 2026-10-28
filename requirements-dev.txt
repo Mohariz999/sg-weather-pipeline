@@ -1,0 +1,4 @@
+-r ingest/poller/requirements.txt
+-r ingest/legacy_extract/requirements.txt
+pytest>=8
+ruff>=0.6

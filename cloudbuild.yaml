@@ -1,0 +1,41 @@
+# Continuous deployment for the poller, triggered on every push to main.
+# test -> build image -> push to Artifact Registry -> point the Cloud Run job at it.
+substitutions:
+  _REGION: asia-southeast1
+  _REPO: weather-repo
+  _JOB: weather-poller
+  _IMAGE: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_JOB}:${SHORT_SHA}
+
+steps:
+  - id: test
+    name: python:3.12-slim
+    entrypoint: bash
+    args:
+      - -c
+      - pip install --quiet -r requirements-dev.txt && pytest tests/test_poller.py tests/test_legacy_extract.py
+
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "${_IMAGE}", "ingest/poller"]
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: ["push", "${_IMAGE}"]
+
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - update
+      - ${_JOB}
+      - --image=${_IMAGE}
+      - --region=${_REGION}
+
+images:
+  - ${_IMAGE}
+
+options:
+  # Required when the build runs as a user-specified service account (sa-deployer).
+  logging: CLOUD_LOGGING_ONLY

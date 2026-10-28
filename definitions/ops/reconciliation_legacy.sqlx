@@ -1,0 +1,45 @@
+config {
+  type: "incremental",
+  schema: "ops",
+  description: "Legacy migration reconciliation: extract manifest (source) vs bronze (target), per file. Appends one set of results per run as an audit trail.",
+  bigquery: {
+    partitionBy: "DATE(checked_at)"
+  }
+}
+
+WITH source AS (
+  SELECT file_name, row_count, temp_c_sum, rain_mm_sum
+  FROM ${ref("legacy_manifest_ext")}
+),
+
+target AS (
+  SELECT
+    _source_file AS file_name,
+    COUNT(*) AS row_count,
+    SUM(temp_c) AS temp_c_sum,
+    SUM(rain_mm) AS rain_mm_sum
+  FROM ${ref("legacy_observations")}
+  GROUP BY _source_file
+)
+
+SELECT
+  COALESCE(s.file_name, t.file_name) AS file_name,
+  s.row_count AS source_rows,
+  t.row_count AS target_rows,
+  s.temp_c_sum AS source_temp_c_sum,
+  t.temp_c_sum AS target_temp_c_sum,
+  s.rain_mm_sum AS source_rain_mm_sum,
+  t.rain_mm_sum AS target_rain_mm_sum,
+  CASE
+    WHEN s.file_name IS NULL THEN 'UNEXPECTED_IN_TARGET'
+    WHEN t.file_name IS NULL THEN 'MISSING_IN_TARGET'
+    WHEN s.row_count != t.row_count THEN 'ROW_COUNT_MISMATCH'
+    -- Sums are compared with a small tolerance for floating-point rounding.
+    -- A NULL target sum means values failed to parse during the load.
+    WHEN t.temp_c_sum IS NULL OR ABS(s.temp_c_sum - t.temp_c_sum) > 0.05 THEN 'CHECKSUM_MISMATCH'
+    WHEN t.rain_mm_sum IS NULL OR ABS(s.rain_mm_sum - t.rain_mm_sum) > 0.05 THEN 'CHECKSUM_MISMATCH'
+    ELSE 'MATCHED'
+  END AS status,
+  CURRENT_TIMESTAMP() AS checked_at
+FROM source AS s
+FULL OUTER JOIN target AS t USING (file_name)

@@ -1,0 +1,71 @@
+# Cloud Workflows: compile the Dataform project from Git, run every action, and wait.
+# Raising an error marks the execution FAILED, which the Cloud Monitoring alert watches.
+#
+# Arguments (all optional): {"git_ref": "main", "check_freshness": "true"}
+main:
+  params: [args]
+  steps:
+    - init:
+        assign:
+          - project: ${sys.get_env("GOOGLE_CLOUD_PROJECT_ID")}
+          - repository: ${"projects/" + project + "/locations/" + sys.get_env("GOOGLE_CLOUD_LOCATION") + "/repositories/" + sys.get_env("DATAFORM_REPOSITORY")}
+          - git_ref: ${default(map.get(args, "git_ref"), "main")}
+          - check_freshness: ${default(map.get(args, "check_freshness"), "false")}
+
+    - compile:
+        call: http.post
+        args:
+          url: ${"https://dataform.googleapis.com/v1beta1/" + repository + "/compilationResults"}
+          auth:
+            type: OAuth2
+          body:
+            gitCommitish: ${git_ref}
+            codeCompilationConfig:
+              defaultDatabase: ${project}
+              vars:
+                check_freshness: ${check_freshness}
+        result: compilation
+
+    - check_compilation:
+        switch:
+          - condition: ${"compilationErrors" in compilation.body}
+            raise: ${compilation.body.compilationErrors}
+
+    - invoke:
+        call: http.post
+        args:
+          url: ${"https://dataform.googleapis.com/v1beta1/" + repository + "/workflowInvocations"}
+          auth:
+            type: OAuth2
+          body:
+            compilationResult: ${compilation.body.name}
+        result: invocation
+
+    - wait:
+        call: sys.sleep
+        args:
+          seconds: 20
+
+    - get_status:
+        call: http.get
+        args:
+          url: ${"https://dataform.googleapis.com/v1beta1/" + invocation.body.name}
+          auth:
+            type: OAuth2
+        result: status
+
+    - check_status:
+        switch:
+          - condition: ${status.body.state == "RUNNING" or status.body.state == "CANCELING"}
+            next: wait
+          - condition: ${status.body.state == "SUCCEEDED"}
+            next: done
+        next: failed
+
+    - failed:
+        raise: ${"Dataform invocation " + invocation.body.name + " finished as " + status.body.state}
+
+    - done:
+        return:
+          invocation: ${invocation.body.name}
+          state: ${status.body.state}

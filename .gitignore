@@ -1,0 +1,22 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.venv*/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+.terraform.lock.hcl.bak
+
+# Dataform
+node_modules/
+.df-credentials.json
+
+# Local legacy extracts
+legacy_out/
+
+# Local assistant notes
+CLAUDE.md

@@ -1,0 +1,9 @@
+config {
+  type: "assertion",
+  description: "Fails the run if any legacy file did not reconcile in the latest check."
+}
+
+SELECT file_name, status, source_rows, target_rows
+FROM ${ref("reconciliation_legacy")}
+WHERE checked_at = (SELECT MAX(checked_at) FROM ${ref("reconciliation_legacy")})
+  AND status != 'MATCHED'

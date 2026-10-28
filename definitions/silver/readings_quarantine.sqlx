@@ -1,0 +1,14 @@
+config {
+  type: "incremental",
+  schema: "silver",
+  description: "Messages that failed validation, kept with the original payload for investigation. Appended on each run.",
+  bigquery: {
+    partitionBy: "DATE(publish_time)"
+  }
+}
+
+SELECT message_id, publish_time, payload, error, CURRENT_TIMESTAMP() AS quarantined_at
+FROM ${ref("readings_parsed")}
+WHERE error IS NOT NULL
+${when(incremental(),
+  `AND publish_time > (SELECT IFNULL(MAX(publish_time), TIMESTAMP('1970-01-01')) FROM ${self()})`)}
