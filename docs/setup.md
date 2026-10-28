@@ -95,6 +95,37 @@ In **Cloud Build → Triggers**, connect the GitHub repository (2nd gen) and cre
 
 GitHub Actions (`.github/workflows/ci.yml`) runs lint, tests, `dataform compile` and `terraform validate` on every pull request.
 
+### Terraform from GitHub Actions
+
+`.github/workflows/terraform.yml` plans every pull request that touches `terraform/` or `orchestration/` (the plan is posted as a PR comment) and applies on merge to `main`. It logs in through Workload Identity Federation, so there are no service-account keys.
+
+One-time bootstrap:
+
+1. Add to `terraform/terraform.tfvars` and apply locally:
+   ```hcl
+   github_repository    = "<github-user>/sg-weather-pipeline"
+   github_repository_id = "<numeric repo id>"   # gh api repos/<github-user>/sg-weather-pipeline --jq .id
+   ```
+2. Grant the two CI identities access to the budget, which lives on the billing account:
+   ```bash
+   gcloud billing accounts add-iam-policy-binding <billing-account-id> \
+     --member="serviceAccount:sa-terraform-plan@${PROJECT_ID}.iam.gserviceaccount.com" --role=roles/billing.viewer
+   gcloud billing accounts add-iam-policy-binding <billing-account-id> \
+     --member="serviceAccount:sa-terraform-apply@${PROJECT_ID}.iam.gserviceaccount.com" --role=roles/billing.costsManager
+   ```
+3. Set the repository variables and secrets:
+   ```bash
+   gh variable set GCP_PROJECT_ID -b "$PROJECT_ID"
+   gh variable set GCP_WORKLOAD_IDENTITY_PROVIDER -b "$(terraform -chdir=terraform output -raw github_workload_identity_provider)"
+   gh variable set TF_BUDGET_AMOUNT -b 20
+   gh secret set TF_BILLING_ACCOUNT_ID    # prompts for the value
+   gh secret set TF_ALERT_EMAIL
+   gh api -X PUT repos/<github-user>/sg-weather-pipeline/environments/production
+   ```
+4. Optional: in **GitHub → Settings → Environments → production**, add yourself as a required reviewer so every apply waits for approval. This needs a public repository or a paid GitHub plan.
+
+From then on, change infrastructure through pull requests rather than local applies.
+
 ## 8. Dashboard
 
 1. In Looker Studio, add a **BigQuery** data source pointing at `gold.island_daily_summary` and `gold.daily_station_weather`.
