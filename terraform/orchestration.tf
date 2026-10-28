@@ -35,11 +35,12 @@ resource "google_dataform_repository" "weather" {
 # --- Workflows -------------------------------------------------------------------
 
 resource "google_workflows_workflow" "daily_transform" {
-  name            = "weather-daily-transform"
-  region          = var.region
-  description     = "Compiles the Dataform project from Git and runs it, failing loudly on any assertion."
-  service_account = google_service_account.sa["workflows"].id
-  source_contents = file("${path.module}/../orchestration/daily_transform.yaml")
+  name                = "weather-daily-transform"
+  region              = var.region
+  deletion_protection = false
+  description         = "Compiles the Dataform project from Git and runs it, failing loudly on any assertion."
+  service_account     = google_service_account.sa["workflows"].id
+  source_contents     = file("${path.module}/../orchestration/daily_transform.yaml")
 
   user_env_vars = {
     DATAFORM_REPOSITORY = "weather-dataform"

@@ -39,3 +39,5 @@ images:
 options:
   # Required when the build runs as a user-specified service account (sa-deployer).
   logging: CLOUD_LOGGING_ONLY
+  # _IMAGE is built from other substitutions, which Cloud Build only expands when this is on.
+  dynamicSubstitutions: true

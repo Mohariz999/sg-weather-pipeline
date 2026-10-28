@@ -101,6 +101,12 @@ resource "google_cloud_run_v2_job_iam_member" "scheduler_runs_poller" {
   member   = google_service_account.sa["scheduler"].member
 }
 
+resource "google_storage_bucket_iam_member" "deployer_reads_source" {
+  bucket = google_storage_bucket.build_source.name
+  role   = "roles/storage.objectViewer"
+  member = google_service_account.sa["deployer"].member
+}
+
 resource "google_artifact_registry_repository_iam_member" "deployer_push" {
   repository = google_artifact_registry_repository.images.name
   location   = var.region

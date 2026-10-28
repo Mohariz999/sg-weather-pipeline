@@ -20,6 +20,9 @@ export PROJECT_ID=<project-id>
 export REGION=asia-southeast1
 gcloud config set project "$PROJECT_ID"
 
+# Terraform enables every other API, but it needs these two before it can start.
+gcloud services enable cloudresourcemanager.googleapis.com serviceusage.googleapis.com
+
 # Terraform state bucket (created once, by hand)
 gcloud storage buckets create "gs://${PROJECT_ID}-tfstate" --location="$REGION" --uniform-bucket-level-access
 gcloud storage buckets update "gs://${PROJECT_ID}-tfstate" --versioning
@@ -45,13 +48,14 @@ cd ..
 
 This creates the APIs, network, buckets, datasets and bronze tables, Pub/Sub, service accounts and IAM, the Cloud Run job, the Workflows definition, the schedules, the alerts and the budget. The Dataform repository is skipped until step 5. The daily transform schedule starts paused.
 
-Confirm the alert email channel from the message Cloud Monitoring sends you.
+Email alert channels need no verification; alerts start arriving when a budget threshold or alert policy fires.
 
 ## 4. Deploy the poller
 
 ```bash
 gcloud builds submit --config=cloudbuild.yaml \
   --substitutions=SHORT_SHA=manual \
+  --gcs-source-staging-dir="gs://${PROJECT_ID}-build-source/source" \
   --service-account="projects/${PROJECT_ID}/serviceAccounts/sa-deployer@${PROJECT_ID}.iam.gserviceaccount.com"
 
 gcloud run jobs execute weather-poller --region="$REGION" --wait

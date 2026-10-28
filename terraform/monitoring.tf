@@ -34,6 +34,8 @@ resource "google_billing_budget" "monthly" {
   all_updates_rule {
     monitoring_notification_channels = [google_monitoring_notification_channel.email.id]
   }
+
+  depends_on = [google_project_service.apis]
 }
 
 # The daily Dataform run failed (a model errored or a data-quality assertion failed).

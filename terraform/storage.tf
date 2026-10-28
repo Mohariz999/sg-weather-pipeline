@@ -33,3 +33,24 @@ resource "google_storage_bucket" "dataproc_temp" {
 
   depends_on = [google_project_service.apis]
 }
+
+# Source uploads for manually submitted builds (`gcloud builds submit`). Triggered builds
+# read straight from GitHub and don't use it.
+resource "google_storage_bucket" "build_source" {
+  name                        = "${var.project_id}-build-source"
+  location                    = var.region
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+  force_destroy               = true
+
+  lifecycle_rule {
+    condition {
+      age = 7
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
+  depends_on = [google_project_service.apis]
+}
