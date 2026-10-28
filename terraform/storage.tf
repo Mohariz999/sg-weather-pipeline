@@ -7,6 +7,12 @@ resource "google_storage_bucket" "landing" {
   public_access_prevention    = "enforced"
   force_destroy               = true
 
+  labels = {
+    layer      = "landing"
+    dataset    = "legacy-archive"
+    managed-by = "terraform"
+  }
+
   versioning {
     enabled = true
   }
