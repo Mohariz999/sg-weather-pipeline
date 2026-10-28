@@ -10,6 +10,8 @@ Every command runs in **Cloud Shell**, which already has `gcloud`, `bq`, `terraf
 
 ## 2. Clone and configure
 
+Create a GitHub fine-grained personal access token first: **Settings → Developer settings → Fine-grained tokens**, limited to this repository, with **Contents: read and write**. For a private repository, `git clone` asks for it (paste it as the password). Dataform needs the same token in step 5.
+
 ```bash
 git clone https://github.com/<you>/sg-weather-pipeline.git
 cd sg-weather-pipeline
