@@ -46,7 +46,7 @@ flowchart LR
 | Orchestration | Cloud Workflows + Cloud Scheduler | Compiles Dataform from Git, runs it, and fails the execution on any error or failed assertion |
 | Semantic layer | LookML (`lookml/`), Looker Studio | Standard metric definitions over the gold layer |
 | Monitoring | Cloud Monitoring | Alerts on failed transforms, failed polls, an ingestion backlog and budget thresholds |
-| Delivery | GitHub Actions, Cloud Build | CI runs ruff, pytest, `dataform compile` and `terraform validate`. Cloud Build tests the poller, builds its image and deploys it |
+| Delivery | GitHub Actions, Cloud Build | CI runs ruff, pytest, `dataform compile` and `terraform validate`. Terraform is planned on every pull request (posted as a PR comment) and applied on merge to `main`. Cloud Build tests the poller, builds its image and deploys it |
 
 ## Data layers
 
@@ -66,6 +66,7 @@ Column-level details: [docs/data-mapping.md](docs/data-mapping.md).
 - **Bronze is faithful to the source.** The migration keeps legacy values unchanged, including `-999`, so bronze can be reconciled exactly against the extract's control totals. All cleaning happens in silver.
 - **Reconciliation is part of the run, not a one-off.** `ops.reconciliation_legacy` compares row counts and column sums per file against the manifest. An assertion fails the run, and so raises an alert, on any file that doesn't match.
 - **Least privilege.** Each component has its own service account. Roles are granted on the specific topic, subscription, bucket or dataset wherever IAM allows it. Workers run on a private subnet with no public IPs, using Private Google Access. The GitHub token for Dataform lives in Secret Manager and is never in Terraform state.
+- **Keyless CI/CD for infrastructure.** GitHub Actions logs in to GCP through Workload Identity Federation, which trusts only this repository's ID. Pull requests plan with a read-only identity; only `main`-branch runs can use the identity that applies. There are no service-account keys to leak.
 - **Terraform owns infrastructure, CI/CD owns releases.** The Cloud Run job is created with a placeholder image and Terraform ignores image changes. Cloud Build rolls out new versions.
 - **Cost.** Gold tables are partitioned and clustered for the dashboard's date and station filters. Cloud Workflows replaces Cloud Composer, because a scheduled dbt-style DAG doesn't need an always-on Airflow environment. A BigQuery subscription replaces an always-on streaming pipeline, since the readings need no processing in flight. Dataproc Serverless bills only while the migration runs. A budget alert tracks spend before credits.
 

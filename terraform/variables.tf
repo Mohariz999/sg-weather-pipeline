@@ -12,6 +12,7 @@ variable "region" {
 variable "billing_account_id" {
   description = "Billing account the project is linked to (for the budget alert), e.g. 012345-6789AB-CDEF01."
   type        = string
+  sensitive   = true
 }
 
 variable "budget_amount" {
@@ -29,6 +30,7 @@ variable "budget_currency" {
 variable "alert_email" {
   description = "Email address that receives budget and pipeline alerts."
   type        = string
+  sensitive   = true
 }
 
 variable "github_repo_url" {
@@ -47,4 +49,16 @@ variable "enable_daily_transform" {
   description = "Run the Dataform transform workflow every morning. Turn on after the legacy migration has loaded."
   type        = bool
   default     = false
+}
+
+variable "github_repository" {
+  description = "GitHub repository (owner/name) whose Actions may plan and apply this Terraform. Leave empty to skip the CI identities."
+  type        = string
+  default     = ""
+}
+
+variable "github_repository_id" {
+  description = "Numeric ID of that repository. Trusting the ID, not just the name, means a recreated repo with the same name gets no access."
+  type        = string
+  default     = ""
 }

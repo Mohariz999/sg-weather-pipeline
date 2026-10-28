@@ -17,3 +17,12 @@ output "poller_image_repo" {
 output "service_accounts" {
   value = { for k, sa in google_service_account.sa : k => sa.email }
 }
+
+output "github_workload_identity_provider" {
+  description = "Value for the GCP_WORKLOAD_IDENTITY_PROVIDER repository variable."
+  value       = local.cicd_enabled ? google_iam_workload_identity_pool_provider.github[0].name : null
+}
+
+output "terraform_service_accounts" {
+  value = { for k, sa in google_service_account.terraform : k => sa.email }
+}

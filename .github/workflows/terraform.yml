@@ -1,0 +1,125 @@
+name: Terraform
+
+# Pull requests: plan with a read-only identity and post the plan as a PR comment.
+# Merges to main: plan and apply with an identity that only main-branch runs can use.
+# Both log in through Workload Identity Federation; there are no service-account keys.
+on:
+  pull_request:
+    paths: ["terraform/**", "orchestration/**", ".github/workflows/terraform.yml"]
+  push:
+    branches: [main]
+    paths: ["terraform/**", "orchestration/**", ".github/workflows/terraform.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
+  TF_VAR_billing_account_id: ${{ secrets.TF_BILLING_ACCOUNT_ID }}
+  TF_VAR_alert_email: ${{ secrets.TF_ALERT_EMAIL }}
+  TF_VAR_budget_amount: ${{ vars.TF_BUDGET_AMOUNT }}
+  TF_VAR_github_repo_url: https://github.com/${{ github.repository }}.git
+  TF_VAR_github_repository: ${{ github.repository }}
+  TF_VAR_github_repository_id: ${{ github.repository_id }}
+  TF_VAR_enable_daily_transform: "true"
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: sa-terraform-plan@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.17.0
+          terraform_wrapper: false
+
+      - run: terraform init -input=false -backend-config="bucket=${{ vars.GCP_PROJECT_ID }}-tfstate"
+
+      # -lock=false: the plan identity can only read state, and a plan never writes it.
+      - id: plan
+        run: |
+          set -o pipefail
+          terraform plan -input=false -no-color -lock=false 2>&1 | tee plan.txt
+
+      - name: Comment plan on the pull request
+        if: always() && steps.plan.outcome != 'skipped'
+        uses: actions/github-script@v7
+        env:
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+        with:
+          script: |
+            const fs = require('fs');
+            let plan = fs.existsSync('terraform/plan.txt') ? fs.readFileSync('terraform/plan.txt', 'utf8') : 'No plan output.';
+            const summary = (plan.match(/^(Plan: .*|No changes\..*)$/m) || ['See the full output below.'])[0];
+            if (plan.length > 60000) plan = '…(truncated)…\n' + plan.slice(-60000);
+            const marker = '<!-- terraform-plan -->';
+            const body = [
+              marker,
+              `### Terraform plan: ${process.env.PLAN_OUTCOME === 'success' ? '✅' : '❌'} ${summary}`,
+              '<details><summary>Full plan</summary>',
+              '',
+              '```',
+              plan,
+              '```',
+              '</details>',
+              '',
+              `Commit ${context.sha.slice(0, 7)}`,
+            ].join('\n');
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find(c => c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+  apply:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    # Required reviewers on this environment add a manual approval before every apply.
+    environment: production
+    concurrency:
+      group: terraform-apply
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: sa-terraform-apply@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.17.0
+          terraform_wrapper: false
+
+      - run: terraform init -input=false -backend-config="bucket=${{ vars.GCP_PROJECT_ID }}-tfstate"
+
+      # Apply exactly the plan that was just shown in the log.
+      - run: terraform plan -input=false -no-color -out=tfplan
+      - run: terraform apply -input=false -no-color tfplan
