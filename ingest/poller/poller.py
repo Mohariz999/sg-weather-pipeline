@@ -5,6 +5,7 @@ published per station reading. The same reading can be published twice (when the
 has not updated since the last poll, or on a retry); silver deduplicates on
 (metric, station_id, reading_ts).
 """
+
 import json
 import logging
 import os

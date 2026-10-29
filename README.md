@@ -1,5 +1,7 @@
 # Singapore Weather Data Platform on GCP
 
+[![CI](https://github.com/Mohariz999/sg-weather-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/Mohariz999/sg-weather-pipeline/actions/workflows/ci.yml)
+
 An end-to-end data platform on Google Cloud for Singapore weather data. It covers:
 - a **migration** of a legacy hourly archive, with reconciliation
 - a **real-time stream** of readings from ~90 national weather stations

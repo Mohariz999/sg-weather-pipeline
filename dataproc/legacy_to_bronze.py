@@ -5,6 +5,7 @@ reconciled exactly against the extract manifest. Cleaning happens in the silver 
 The only changes here are typing, converting Singapore local time to UTC, and lineage
 columns. Each run overwrites the bronze tables, so re-running the migration is safe.
 """
+
 import argparse
 
 from pyspark.sql import SparkSession
@@ -59,11 +60,7 @@ def main():
     parser.add_argument("--temp-bucket", required=True)
     args = parser.parse_args()
 
-    spark = (
-        SparkSession.builder.appName("legacy-to-bronze")
-        .config("spark.sql.session.timeZone", "UTC")
-        .getOrCreate()
-    )
+    spark = SparkSession.builder.appName("legacy-to-bronze").config("spark.sql.session.timeZone", "UTC").getOrCreate()
     base = f"gs://{args.bucket}/legacy"
 
     observations = transform_observations(
