@@ -9,6 +9,8 @@ An end-to-end data platform on Google Cloud for Singapore weather data. It cover
 
 All infrastructure is defined in Terraform.
 
+> **Project status:** I deployed and ran this platform on a personal GCP project in October 2026, then tore the infrastructure down with `terraform destroy` to avoid ongoing costs. Everything needed to rebuild it from an empty project is in this repository: see [docs/setup.md](docs/setup.md).
+
 ```mermaid
 flowchart LR
   subgraph Sources
