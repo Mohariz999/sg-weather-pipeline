@@ -10,6 +10,7 @@ Usage:
     python3 legacy_extract.py --bucket <project>-landing --start 2024-10-01 --end 2026-10-20
     python3 legacy_extract.py --local-dir ./legacy_out ...   # write to disk instead
 """
+
 import argparse
 import csv
 import io
@@ -48,11 +49,14 @@ def fetch_stations(session):
         resp = session.get(f"{STATIONS_API}/{endpoint}", timeout=30)
         resp.raise_for_status()
         for s in resp.json()["data"]["stations"]:
-            stations.setdefault(s["id"], {
-                "name": s.get("name"),
-                "latitude": s["location"]["latitude"],
-                "longitude": s["location"]["longitude"],
-            })
+            stations.setdefault(
+                s["id"],
+                {
+                    "name": s.get("name"),
+                    "latitude": s["location"]["latitude"],
+                    "longitude": s["location"]["longitude"],
+                },
+            )
     return stations
 
 
@@ -129,6 +133,7 @@ class Sink:
         self.local_dir = Path(local_dir) if local_dir else None
         if bucket:
             from google.cloud import storage
+
             self.bucket = storage.Client().bucket(bucket)
 
     def write(self, path, content):
